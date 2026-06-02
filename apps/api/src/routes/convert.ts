@@ -10,6 +10,7 @@ import { ensureDir, extOf, safeBaseName } from '../util/files.js';
 import { jobStore } from '../queue/jobStore.js';
 import { submitJob } from '../services/worker.js';
 import { Direction, Job, toJobView } from '../types.js';
+import { DEFAULT_OPTIMIZE, OptimizeOptions, TextureFormat } from '../converters/optimizeGlb.js';
 
 export const convertRouter = Router();
 
@@ -19,6 +20,23 @@ function resolveDirection(requested: unknown, ext: string): Direction | null {
   if (ext === 'fbx') return 'fbx2glb';
   if (ext === 'glb' || ext === 'gltf') return 'glb2fbx';
   return null;
+}
+
+function asBool(v: unknown): boolean {
+  return v === 'true' || v === '1' || v === true;
+}
+
+/** Parse optional optimization fields from the multipart body. */
+function parseOptions(body: Record<string, unknown>): OptimizeOptions {
+  const fmt = body.textureFormat;
+  const textureFormat: TextureFormat = fmt === 'webp' || fmt === 'jpeg' ? fmt : 'keep';
+  const size = Number.parseInt(String(body.maxTextureSize ?? ''), 10);
+  return {
+    draco: asBool(body.draco),
+    cleanup: asBool(body.cleanup),
+    textureFormat,
+    maxTextureSize: Number.isFinite(size) && size > 0 ? size : 0,
+  };
 }
 
 convertRouter.post(
@@ -72,6 +90,10 @@ convertRouter.post(
       const inputPath = path.join(jobDir, inputName);
       await fs.rename(file.path, inputPath);
 
+      // Optimization only applies to GLB output (the FBX→GLB direction).
+      const options =
+        direction === 'fbx2glb' ? parseOptions(req.body ?? {}) : { ...DEFAULT_OPTIMIZE };
+
       const now = Date.now();
       const job: Job = {
         id: jobId,
@@ -81,6 +103,7 @@ convertRouter.post(
         inputName,
         inputPath,
         inputSize: file.size,
+        options,
         createdAt: now,
         updatedAt: now,
       };

@@ -6,12 +6,18 @@ import { logger } from '../util/logger.js';
 import { fileSize, swapExt } from '../util/files.js';
 import { convertFbxToGlb } from '../converters/fbx2glb.js';
 import { convertGlbToFbx } from '../converters/glb2fbx.js';
+import { hasAnyOptimization, optimizeGlb } from '../converters/optimizeGlb.js';
 import { inspectFbx } from '../validation/fbxInspect.js';
 import { inspectGlb } from '../validation/gltfInspect.js';
 import { buildReport } from '../validation/report.js';
 import { AssetSummary, emptySummary } from '../validation/summary.js';
 
 const log = logger.child('pipeline');
+
+function formatKb(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 /**
  * Full conversion pipeline for one job:
@@ -40,6 +46,25 @@ export async function runConversion(jobId: string): Promise<void> {
         ? await convertFbxToGlb(job.inputPath, outputPath, onLog)
         : await convertGlbToFbx(job.inputPath, outputPath, onLog);
 
+    // 2b. Optional optimization (Draco / texture / cleanup) — GLB output only.
+    const optimizeNotes: string[] = [];
+    let compression: { beforeBytes: number; afterBytes: number } | undefined;
+    if (job.direction === 'fbx2glb' && hasAnyOptimization(job.options)) {
+      jobStore.setStatus(jobId, 'converting', { percent: 58, label: 'Optimizing & compressing' });
+      try {
+        const opt = await optimizeGlb(result.outputPath, job.options);
+        if (opt) {
+          compression = { beforeBytes: opt.beforeBytes, afterBytes: opt.afterBytes };
+          const pct = opt.beforeBytes ? Math.round((1 - opt.afterBytes / opt.beforeBytes) * 100) : 0;
+          optimizeNotes.push(...opt.notes, `Size: ${formatKb(opt.beforeBytes)} → ${formatKb(opt.afterBytes)} (${pct >= 0 ? '−' : '+'}${Math.abs(pct)}%)`);
+        }
+      } catch (err) {
+        // Optimization is best-effort; keep the un-optimized file if it fails.
+        optimizeNotes.push(`Optimization skipped: ${(err as Error).message}`);
+        log.warn(`job ${jobId} optimization failed`, (err as Error).message);
+      }
+    }
+
     // 3. Inspect the output.
     jobStore.setStatus(jobId, 'verifying', { percent: 72, label: 'Verifying skeleton, skinning & animation' });
     const output = await inspectOutput(job.direction, result.outputPath);
@@ -52,7 +77,7 @@ export async function runConversion(jobId: string): Promise<void> {
       path.basename(result.outputPath),
       source,
       output,
-      result.notes,
+      [...result.notes, ...optimizeNotes],
     );
 
     const outSize = await fileSize(result.outputPath);
@@ -62,6 +87,7 @@ export async function runConversion(jobId: string): Promise<void> {
       outputName: path.basename(result.outputPath),
       outputPath: result.outputPath,
       outputSize: outSize,
+      compression,
       report,
     });
     log.info(`job ${jobId} done -> ${path.basename(result.outputPath)} (${report.verdict})`);

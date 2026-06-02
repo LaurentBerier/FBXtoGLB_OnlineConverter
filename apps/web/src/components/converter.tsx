@@ -1,12 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Download, Loader2, RefreshCw, Wand2, AlertCircle } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Download, Loader2, RefreshCw, Wand2, AlertCircle, Minimize2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Dropzone } from '@/components/dropzone';
 import { FormatSelector } from '@/components/format-selector';
+import { OptionsPanel } from '@/components/options-panel';
 import { ReportCard } from '@/components/report-card';
 import { cn, formatBytes } from '@/lib/utils';
 import {
@@ -14,10 +16,26 @@ import {
   fetchJob,
   startConversion,
   downloadUrl,
+  DEFAULT_OPTIONS,
   type Capabilities,
   type Direction,
   type JobView,
+  type OptimizeOptions,
 } from '@/lib/api';
+
+// Three.js viewer is client-only (no SSR) and lazy-loaded to keep the page light.
+const ModelViewer = dynamic(() => import('@/components/model-viewer'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-72 w-full items-center justify-center rounded-xl border border-border bg-muted/30">
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  ),
+});
+
+function extFormat(name: string): 'glb' | 'fbx' {
+  return name.toLowerCase().endsWith('.fbx') ? 'fbx' : 'glb';
+}
 
 type Phase = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
@@ -40,7 +58,20 @@ export function Converter() {
   const [uploadPct, setUploadPct] = React.useState(0);
   const [job, setJob] = React.useState<JobView | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [options, setOptions] = React.useState<OptimizeOptions>(DEFAULT_OPTIONS);
+  const [inputUrl, setInputUrl] = React.useState<string | null>(null);
   const pollRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Build an object URL for the local file so we can preview it before converting.
+  React.useEffect(() => {
+    if (!file) {
+      setInputUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setInputUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   // Load server capabilities (engine availability, limits).
   React.useEffect(() => {
@@ -88,7 +119,7 @@ export function Converter() {
     setUploadPct(0);
     setPhase('uploading');
     try {
-      const created = await startConversion(file, direction, setUploadPct);
+      const created = await startConversion(file, direction, options, setUploadPct);
       setJob(created);
       setPhase('processing');
       poll(created.id);
@@ -122,6 +153,11 @@ export function Converter() {
           disabled={busy}
         />
 
+        {/* Preview the chosen file before conversion. */}
+        {file && inputUrl && phase !== 'done' && (
+          <ModelViewer src={inputUrl} format={extFormat(file.name)} label="Input preview" />
+        )}
+
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-muted-foreground">Conversion</label>
@@ -136,6 +172,13 @@ export function Converter() {
             disabled={busy}
           />
         </div>
+
+        <OptionsPanel
+          value={options}
+          onChange={setOptions}
+          enabled={direction === 'fbx2glb'}
+          disabled={busy}
+        />
 
         {(busy || phase === 'done') && (
           <div className="space-y-2 animate-fade-in">
@@ -157,7 +200,40 @@ export function Converter() {
           </div>
         )}
 
-        {phase === 'done' && job?.report && <ReportCard report={job.report} />}
+        {/* Result preview + report */}
+        {phase === 'done' && job && (
+          <div className="space-y-4 animate-fade-in">
+            <ModelViewer
+              src={downloadUrl(job.id)}
+              format={job.direction === 'fbx2glb' ? 'glb' : 'fbx'}
+              label="Result"
+            />
+            {job.compression && (
+              <div className="flex items-center justify-center gap-2 rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-sm">
+                <Minimize2 className="h-4 w-4 text-success" />
+                <span className="text-muted-foreground">
+                  Compressed{' '}
+                  <span className="font-medium text-foreground">
+                    {formatBytes(job.compression.beforeBytes)}
+                  </span>{' '}
+                  →{' '}
+                  <span className="font-medium text-foreground">
+                    {formatBytes(job.compression.afterBytes)}
+                  </span>{' '}
+                  <span className="font-semibold text-success">
+                    (−
+                    {Math.max(
+                      0,
+                      Math.round((1 - job.compression.afterBytes / job.compression.beforeBytes) * 100),
+                    )}
+                    %)
+                  </span>
+                </span>
+              </div>
+            )}
+            {job.report && <ReportCard report={job.report} />}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 sm:flex-row">
           {phase !== 'done' ? (

@@ -29,5 +29,7 @@ healthRouter.get('/capabilities', async (_req: Request, res: Response) => {
       fbx2glb: tools.fbx2gltf.available,
       glb2fbx: tools.blender.available,
     },
+    // Optimization runs in-process (gltf-transform), always available for GLB output.
+    optimization: { available: true, appliesTo: 'fbx2glb' },
   });
 });

@@ -1,11 +1,20 @@
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import draco3d from 'draco3dgltf';
 import { AssetSummary, emptySummary } from './summary.js';
 
-let io: NodeIO | null = null;
-function getIO(): NodeIO {
-  if (!io) io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
-  return io;
+// Register the Draco decoder so we can also read Draco-compressed GLBs
+// (e.g. our own optimized output) when building the validation report.
+let ioPromise: Promise<NodeIO> | null = null;
+function getIO(): Promise<NodeIO> {
+  if (!ioPromise) {
+    ioPromise = draco3d.createDecoderModule().then((decoder) =>
+      new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+        'draco3d.decoder': decoder,
+      }),
+    );
+  }
+  return ioPromise;
 }
 
 /**
@@ -14,7 +23,8 @@ function getIO(): NodeIO {
  */
 export async function inspectGlb(filePath: string): Promise<AssetSummary> {
   const summary = emptySummary();
-  const doc = await getIO().read(filePath);
+  const io = await getIO();
+  const doc = await io.read(filePath);
   const root = doc.getRoot();
 
   const meshes = root.listMeshes();

@@ -1,4 +1,11 @@
+import type { OptimizeOptions } from './converters/optimizeGlb.js';
+
 export type Direction = 'fbx2glb' | 'glb2fbx';
+
+export interface CompressionStats {
+  beforeBytes: number;
+  afterBytes: number;
+}
 
 export type JobStatus =
   | 'queued'
@@ -48,9 +55,11 @@ export interface Job {
   inputName: string;
   inputPath: string;
   inputSize: number;
+  options: OptimizeOptions;
   outputName?: string;
   outputPath?: string;
   outputSize?: number;
+  compression?: CompressionStats;
   report?: ConversionReport;
   error?: string;
   createdAt: number;
@@ -64,8 +73,10 @@ export interface JobView {
   status: JobStatus;
   progress: JobProgress;
   inputName: string;
+  options: OptimizeOptions;
   outputName?: string;
   outputSize?: number;
+  compression?: CompressionStats;
   report?: ConversionReport;
   error?: string;
   createdAt: number;
@@ -79,8 +90,10 @@ export function toJobView(job: Job): JobView {
     status: job.status,
     progress: job.progress,
     inputName: job.inputName,
+    options: job.options,
     outputName: job.outputName,
     outputSize: job.outputSize,
+    compression: job.compression,
     report: job.report,
     error: job.error,
     createdAt: job.createdAt,

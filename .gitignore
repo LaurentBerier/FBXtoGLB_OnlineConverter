@@ -34,3 +34,6 @@ bin/FBX2glTF*
 # test artifacts
 coverage/
 *.glb.report.json
+
+# typescript incremental build info
+*.tsbuildinfo

@@ -27,6 +27,17 @@ After conversion the API independently **inspects** the source and the output
 (geometry, bones, skin weights, animation clips/keyframes, materials, textures)
 and produces a side-by-side fidelity report.
 
+### Preview & optimize
+
+- **3D preview** — an in-browser Three.js viewer (orbit, wireframe, auto-rotate,
+  grid) shows the model before conversion and the result after, for both GLB and
+  FBX. Loaded lazily so the landing page stays light.
+- **Optimization** (FBX→GLB output) — optional, never on by default:
+  - **Draco** geometry compression (skin weights kept at high precision),
+  - texture **resize** + re-encode to **WebP/JPEG**,
+  - **cleanup** (prune unused + dedup),
+  - the report shows the before→after size and % saved.
+
 ## Architecture
 
 ```
@@ -113,7 +124,8 @@ parser; GLB/glTF with [`@gltf-transform`](https://gltf-transform.dev/).
 ## Roadmap
 
 - **Phase 2** — batch conversion; OBJ, STL, USDZ/USD, DAE, BLEND, Maya ASCII/Binary.
-- **Phase 3** — in-browser rig/animation preview, skeleton/material/texture inspectors.
+- **Phase 3** — animation playback in the viewer, skeleton/material/texture
+  inspectors (a basic 3D preview already ships).
 
 See [SETUP.md](./SETUP.md) for installing the conversion engines and
 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the pipeline details.

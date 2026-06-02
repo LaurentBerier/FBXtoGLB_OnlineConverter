@@ -3,6 +3,22 @@ export const API_BASE =
 
 export type Direction = 'fbx2glb' | 'glb2fbx';
 
+export type TextureFormat = 'keep' | 'webp' | 'jpeg';
+
+export interface OptimizeOptions {
+  draco: boolean;
+  cleanup: boolean;
+  textureFormat: TextureFormat;
+  maxTextureSize: number; // 0 = keep original
+}
+
+export const DEFAULT_OPTIONS: OptimizeOptions = {
+  draco: false,
+  cleanup: false,
+  textureFormat: 'keep',
+  maxTextureSize: 0,
+};
+
 export type JobStatus =
   | 'queued'
   | 'validating'
@@ -31,14 +47,21 @@ export interface ConversionReport {
   notes: string[];
 }
 
+export interface CompressionStats {
+  beforeBytes: number;
+  afterBytes: number;
+}
+
 export interface JobView {
   id: string;
   direction: Direction;
   status: JobStatus;
   progress: { percent: number; label: string };
   inputName: string;
+  options: OptimizeOptions;
   outputName?: string;
   outputSize?: number;
+  compression?: CompressionStats;
   report?: ConversionReport;
   error?: string;
   createdAt: number;
@@ -75,12 +98,18 @@ export async function fetchCapabilities(): Promise<Capabilities> {
 export async function startConversion(
   file: File,
   direction: Direction,
+  options: OptimizeOptions,
   onUploadProgress?: (percent: number) => void,
 ): Promise<JobView> {
   // XHR so we can report upload progress (fetch can't, pre-streams).
   return new Promise<JobView>((resolve, reject) => {
     const form = new FormData();
     form.append('direction', direction);
+    // Optimization options (the API ignores them for GLB→FBX).
+    form.append('draco', String(options.draco));
+    form.append('cleanup', String(options.cleanup));
+    form.append('textureFormat', options.textureFormat);
+    form.append('maxTextureSize', String(options.maxTextureSize));
     form.append('file', file);
 
     const xhr = new XMLHttpRequest();
