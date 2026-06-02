@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+dist/
+.next/
+out/
+build/
+
+# runtime data
+storage/
+tmp/
+*.log
+logs/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# editor / os
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# binaries (downloaded conversion tools)
+bin/FBX2glTF*
+!bin/.gitkeep
+
+# test artifacts
+coverage/
+*.glb.report.json

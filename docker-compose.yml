@@ -1,0 +1,49 @@
+# Local production-like stack: frontend + conversion worker/API.
+# Usage:
+#   docker compose up --build
+# Then open http://localhost:3000
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    image: fbxglb-worker
+    ports:
+      - '4000:4000'
+    environment:
+      API_PORT: '4000'
+      CORS_ORIGIN: 'http://localhost:3000'
+      STORAGE_DIR: '/data'
+      MAX_FILE_SIZE_MB: '500'
+      RETENTION_HOURS: '24'
+      MAX_CONCURRENT_JOBS: '2'
+      BLENDER_PATH: '/usr/local/bin/blender'
+      FBX2GLTF_PATH: '/usr/local/bin/FBX2glTF'
+      # Optional ClamAV (run a clamd sidecar and point at it):
+      CLAMAV_ENABLED: 'false'
+    volumes:
+      - conversion-data:/data
+    # Conversions are CPU/RAM heavy; give the worker room and scale replicas
+    # horizontally behind the queue for more throughput.
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        # The browser talks to the API directly; point this at the public API URL.
+        NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000'
+    image: fbxglb-web
+    ports:
+      - '3000:3000'
+    depends_on:
+      - worker
+    restart: unless-stopped
+
+volumes:
+  conversion-data:
