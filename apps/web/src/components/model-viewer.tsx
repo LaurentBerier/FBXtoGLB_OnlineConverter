@@ -85,6 +85,40 @@ function detectSkeleton(root: THREE.Object3D): boolean {
   return found;
 }
 
+/**
+ * Replace every SkinnedMesh with a plain Mesh that shares its geometry, material,
+ * parent and local transform. At bind (rest) pose a correct SkinnedMesh renders
+ * identically to its raw geometry — the bind matrix, bone matrices and their
+ * inverses all cancel — so for a *static* asset this is loss-free. It sidesteps
+ * three's FBXLoader rebuilding the bind pose incorrectly for UE-style rigs
+ * (>4 influences, custom bone axes), which otherwise collapses the mesh into a
+ * blob. Only call when there is no animation to play. Returns the swap count.
+ */
+function staticizeSkinnedMeshes(root: THREE.Object3D): number {
+  const swaps: Array<{ parent: THREE.Object3D; from: THREE.SkinnedMesh; to: THREE.Mesh }> = [];
+  root.traverse((o) => {
+    const sm = o as THREE.SkinnedMesh;
+    if (!sm.isSkinnedMesh || !sm.parent) return;
+    const mesh = new THREE.Mesh(sm.geometry, sm.material);
+    mesh.name = sm.name;
+    mesh.position.copy(sm.position);
+    mesh.quaternion.copy(sm.quaternion);
+    mesh.scale.copy(sm.scale);
+    mesh.userData = sm.userData;
+    mesh.frustumCulled = false;
+    swaps.push({ parent: sm.parent, from: sm, to: mesh });
+  });
+  for (const { parent, from, to } of swaps) {
+    const i = parent.children.indexOf(from);
+    if (i !== -1) {
+      parent.children[i] = to;
+      to.parent = parent;
+      from.parent = null;
+    }
+  }
+  return swaps.length;
+}
+
 function setWireframe(root: THREE.Object3D, on: boolean) {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -296,6 +330,15 @@ function FbxModel({ src, wireframe, playing, skeleton, zUp, onReady }: ModelProp
     // external textures fall back to the neutral clay material above.
     (loader as FBXLoader).manager.addHandler(/\.tga$/i, new TGALoader());
   }) as unknown as THREE.Group;
+
+  // Static assets: render skinned meshes at rest pose instead of trusting
+  // FBXLoader's bind-pose reconstruction (which balls up UE-style rigs). Runs
+  // once per loaded group, before prepare/measure. Skip when animation exists so
+  // playback still drives the skeleton.
+  const isStatic = (group.animations?.length ?? 0) === 0;
+  React.useMemo(() => {
+    if (isStatic) staticizeSkinnedMeshes(group);
+  }, [group, isStatic]);
 
   const hasAnim = useClipPlayback(group, group.animations, playing);
   React.useEffect(() => setWireframe(group, wireframe), [group, wireframe]);

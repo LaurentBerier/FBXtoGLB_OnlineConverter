@@ -1,8 +1,20 @@
 import { AssetSummary } from './summary.js';
 import { ConversionReport, Direction, ReportCheck } from '../types.js';
 
-/** Compare a count that must be preserved (output should match source). */
-function countCheck(key: string, label: string, source: number, output: number, unit = 'preserved'): ReportCheck {
+/**
+ * Compare a count that must be preserved (output should match source).
+ * `shortfallStatus` is the severity when the output has fewer than the source —
+ * 'fail' for things that must survive (meshes, bones), 'warn' for losses that
+ * are an expected format limitation (e.g. PBR textures with no FBX slot).
+ */
+function countCheck(
+  key: string,
+  label: string,
+  source: number,
+  output: number,
+  unit = 'preserved',
+  shortfallStatus: ReportCheck['status'] = 'fail',
+): ReportCheck {
   if (source === 0 && output === 0) {
     return { key, label, status: 'ok', detail: `none present`, source, output };
   }
@@ -13,7 +25,7 @@ function countCheck(key: string, label: string, source: number, output: number, 
   if (output >= source) {
     return { key, label, status: 'ok', detail: `${output}/${source} ${unit}`, source, output };
   }
-  return { key, label, status: 'fail', detail: `${output}/${source} ${unit}`, source, output };
+  return { key, label, status: shortfallStatus, detail: `${output}/${source} ${unit}`, source, output };
 }
 
 function nameMatchNote(label: string, source: string[], output: string[]): string | null {
@@ -72,9 +84,12 @@ export function buildReport(
     });
   }
 
-  // Materials & textures
+  // Materials & textures. A texture shortfall is a warning, not a failure:
+  // glTF→FBX commonly drops PBR maps (metallic/roughness/occlusion) that FBX's
+  // legacy material model has no slot for, while base color + normal survive.
   checks.push(countCheck('materials', 'Materials', source.materials, output.materials));
-  checks.push(countCheck('textures', 'Textures', source.textures, output.textures));
+  const texShortfallStatus = direction === 'glb2fbx' ? 'warn' : 'fail';
+  checks.push(countCheck('textures', 'Textures', source.textures, output.textures, 'preserved', texShortfallStatus));
 
   // Orientation (informational)
   if (source.upAxis !== 'unknown' || output.upAxis !== 'unknown') {
@@ -89,6 +104,13 @@ export function buildReport(
 
   // Name-match notes (non-fatal but useful)
   const notes = [...extraNotes, ...source.notes, ...output.notes];
+  if (direction === 'glb2fbx' && output.textures < source.textures) {
+    const dropped = source.textures - output.textures;
+    notes.push(
+      `${dropped} texture(s) not written to FBX — glTF packs metallic/roughness/occlusion into maps ` +
+        `that FBX's material model has no standard slot for. Base color and normal maps are preserved.`,
+    );
+  }
   const boneNote = nameMatchNote('Bone names', source.boneNames, output.boneNames);
   if (boneNote) notes.push(boneNote);
   const animNote = nameMatchNote('Animation names', source.animationNames, output.animationNames);

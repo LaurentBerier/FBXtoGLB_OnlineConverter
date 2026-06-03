@@ -64,6 +64,10 @@ export function Converter() {
   const [inputUrl, setInputUrl] = React.useState<string | null>(null);
   const [inputUpAxis, setInputUpAxis] = React.useState<UpAxis>('unknown');
   const [outputUpAxis, setOutputUpAxis] = React.useState<OutputUpAxis>('y');
+  // The axis the *current* job was actually converted with. Snapshotted at
+  // convert time so toggling `outputUpAxis` afterwards can't re-rotate (and tip
+  // over) the already-built result preview.
+  const [convertedUpAxis, setConvertedUpAxis] = React.useState<OutputUpAxis>('y');
   const pollRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Build an object URL for the local file so we can preview it before converting.
@@ -77,7 +81,9 @@ export function Converter() {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  // Detect the up-axis of the chosen file (GLB/glTF is always Y-up).
+  // Detect the up-axis of the chosen file (GLB/glTF is always Y-up) and match
+  // the output orientation to it, so the converted file keeps its orientation
+  // by default. The user can still override via the toggle afterwards.
   React.useEffect(() => {
     if (!file) {
       setInputUpAxis('unknown');
@@ -86,10 +92,15 @@ export function Converter() {
     let cancelled = false;
     if (file.name.toLowerCase().endsWith('.fbx')) {
       detectFbxUpAxis(file)
-        .then((axis) => !cancelled && setInputUpAxis(axis))
+        .then((axis) => {
+          if (cancelled) return;
+          setInputUpAxis(axis);
+          if (axis !== 'unknown') setOutputUpAxis(axis);
+        })
         .catch(() => !cancelled && setInputUpAxis('unknown'));
     } else {
       setInputUpAxis('y');
+      setOutputUpAxis('y');
     }
     return () => {
       cancelled = true;
@@ -143,6 +154,7 @@ export function Converter() {
     setPhase('uploading');
     try {
       const created = await startConversion(file, direction, options, outputUpAxis, setUploadPct);
+      setConvertedUpAxis(outputUpAxis);
       setJob(created);
       setPhase('processing');
       poll(created.id);
@@ -274,8 +286,10 @@ export function Converter() {
             <ModelViewer
               src={downloadUrl(job.id)}
               format={job.direction === 'fbx2glb' ? 'glb' : 'fbx'}
-              // GLB output is Y-up; an FBX exported Z-up is shown upright.
-              sourceUpAxis={job.direction === 'glb2fbx' ? outputUpAxis : 'y'}
+              // GLB output is Y-up; an FBX exported Z-up is shown upright. Use the
+              // axis the job was built with, not the live toggle (which the user
+              // may have changed since), so the preview can't tip over.
+              sourceUpAxis={job.direction === 'glb2fbx' ? convertedUpAxis : 'y'}
               label="Result"
             />
             {job.compression && (
@@ -322,15 +336,17 @@ export function Converter() {
               <a
                 href={job ? downloadUrl(job.id) : '#'}
                 download
-                className={cn(buttonVariants({ variant: 'brand', size: 'lg' }), 'flex-1')}
+                className={cn(buttonVariants({ variant: 'brand', size: 'lg' }), 'min-w-0 flex-1')}
               >
-                <Download className="h-4 w-4" />
-                Download {job?.outputName}
-                {job?.outputSize ? (
-                  <span className="opacity-70">({formatBytes(job.outputSize)})</span>
-                ) : null}
+                <Download className="h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  Download {job?.outputName}
+                  {job?.outputSize ? (
+                    <span className="opacity-70"> ({formatBytes(job.outputSize)})</span>
+                  ) : null}
+                </span>
               </a>
-              <Button size="lg" variant="outline" onClick={reset}>
+              <Button size="lg" variant="outline" className="shrink-0" onClick={reset}>
                 <RefreshCw className="h-4 w-4" />
                 Convert another
               </Button>

@@ -58,6 +58,13 @@ def main():
     bpy.ops.import_scene.gltf(filepath=args.input, import_pack_images=True)
     summarize()
 
+    # Only bake animation when the scene actually has actions. Forcing bake_anim
+    # on a static asset makes Blender emit a degenerate "Take" with start/end
+    # keys referencing nothing, which Maya rejects on import with
+    # "FBXImport error: take not found." and aborts the whole import.
+    has_anim = len(bpy.data.actions) > 0
+    print(f"[bridge] has_anim={has_anim} (actions={len(bpy.data.actions)})")
+
     # Output up-axis: Y-up (glTF standard) or Z-up (Unreal / 3ds Max convention).
     if args.up_axis == "z":
         axis_up, axis_forward = "Z", "-Y"
@@ -79,11 +86,11 @@ def main():
         add_leaf_bones=False,
         primary_bone_axis="Y",
         secondary_bone_axis="X",
-        bake_anim=True,
-        bake_anim_use_all_bones=True,
-        bake_anim_use_nla_strips=True,
-        bake_anim_use_all_actions=True,
-        bake_anim_force_startend_keying=True,
+        bake_anim=has_anim,
+        bake_anim_use_all_bones=has_anim,
+        bake_anim_use_nla_strips=has_anim,
+        bake_anim_use_all_actions=has_anim,
+        bake_anim_force_startend_keying=has_anim,
         path_mode="COPY",
         embed_textures=True,
         axis_forward=axis_forward,
