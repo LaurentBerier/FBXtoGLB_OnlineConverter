@@ -88,7 +88,7 @@ These scripts install **Node 20+** and **Blender**, install JS dependencies,
 seed the local env files, and verify everything with `doctor`:
 
 ```bash
-# macOS / Linux
+# macOS / Linux — double-click setup.command (macOS), or in a terminal:
 ./setup.sh        # then:  npm run dev   (or ./start.sh)
 
 # Windows — double-click setup.bat, or from PowerShell:
@@ -96,6 +96,10 @@ powershell -ExecutionPolicy Bypass -File setup.ps1   # then: npm run dev  (or st
 ```
 
 Then open <http://localhost:3000>.
+
+Already set up? Just launch with **`./start.sh`** (macOS/Linux) or **`start.bat`**
+(Windows) — they run setup automatically on the first launch, then start both
+servers.
 
 > The scripts use the OS package manager (Homebrew on macOS, `winget` on
 > Windows, apt/snap on Linux). If one isn't available they print the exact

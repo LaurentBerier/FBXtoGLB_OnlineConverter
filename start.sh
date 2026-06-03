@@ -9,14 +9,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "[ERROR] Node.js was not found on PATH. Run ./setup.sh first (or install Node 20+)." >&2
-  exit 1
+# First run on this machine? Hand off to setup.sh, which installs Node + Blender,
+# the JS dependencies and the local env files.
+if [ ! -d node_modules ] || ! command -v node >/dev/null 2>&1; then
+  echo "[first run] Running setup.sh (installs Node, Blender & dependencies)..."
+  bash ./setup.sh
 fi
 
-if [ ! -d node_modules ]; then
-  echo "[setup] Installing dependencies (first run)..."
-  npm install
+if ! command -v node >/dev/null 2>&1; then
+  echo "[ERROR] Node.js still not on PATH. Open a NEW terminal and run ./start.sh again." >&2
+  exit 1
 fi
 
 cat <<'EOF'

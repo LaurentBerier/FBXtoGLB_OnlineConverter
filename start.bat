@@ -9,21 +9,18 @@ cd /d "%~dp0"
 
 REM Next.js dev never auto-opens a browser, so nothing to disable here.
 
-where node >nul 2>nul
-if errorlevel 1 (
-  echo [ERROR] Node.js was not found on PATH. Install Node 20+ and try again.
-  pause
-  exit /b 1
+REM First run on this machine? Hand off to setup.ps1, which installs Node +
+REM Blender, the JS dependencies and the local env files.
+if not exist "node_modules" (
+  echo [first run] Running setup ^(installs Node, Blender ^& dependencies^)...
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
 )
 
-if not exist "node_modules" (
-  echo [setup] Installing dependencies ^(first run^)...
-  call npm install
-  if errorlevel 1 (
-    echo [ERROR] npm install failed.
-    pause
-    exit /b 1
-  )
+where node >nul 2>nul
+if errorlevel 1 (
+  echo [ERROR] Node.js still not on PATH. Close this window, open a NEW terminal, and run start.bat again.
+  pause
+  exit /b 1
 )
 
 echo.

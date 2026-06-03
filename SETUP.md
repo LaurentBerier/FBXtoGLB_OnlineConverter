@@ -4,7 +4,7 @@
 > **and Blender**, the JS dependencies, and verifies everything:
 >
 > ```bash
-> ./setup.sh                                            # macOS / Linux
+> ./setup.sh                                            # macOS / Linux (or double-click setup.command)
 > powershell -ExecutionPolicy Bypass -File setup.ps1    # Windows (or double-click setup.bat)
 > ```
 >
