@@ -76,6 +76,17 @@ export function buildReport(
   checks.push(countCheck('materials', 'Materials', source.materials, output.materials));
   checks.push(countCheck('textures', 'Textures', source.textures, output.textures));
 
+  // Orientation (informational)
+  if (source.upAxis !== 'unknown' || output.upAxis !== 'unknown') {
+    const fmt = (a: string) => (a === 'z' ? 'Z-up' : a === 'y' ? 'Y-up' : 'unknown');
+    checks.push({
+      key: 'orientation',
+      label: 'Orientation',
+      status: 'ok',
+      detail: `${fmt(source.upAxis)} → ${fmt(output.upAxis)}`,
+    });
+  }
+
   // Name-match notes (non-fatal but useful)
   const notes = [...extraNotes, ...source.notes, ...output.notes];
   const boneNote = nameMatchNote('Bone names', source.boneNames, output.boneNames);

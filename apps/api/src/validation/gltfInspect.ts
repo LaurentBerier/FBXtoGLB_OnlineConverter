@@ -23,6 +23,7 @@ function getIO(): Promise<NodeIO> {
  */
 export async function inspectGlb(filePath: string): Promise<AssetSummary> {
   const summary = emptySummary();
+  summary.upAxis = 'y'; // glTF/GLB is Y-up by specification.
   const io = await getIO();
   const doc = await io.read(filePath);
   const root = doc.getRoot();

@@ -93,6 +93,7 @@ convertRouter.post(
       // Optimization only applies to GLB output (the FBX→GLB direction).
       const options =
         direction === 'fbx2glb' ? parseOptions(req.body ?? {}) : { ...DEFAULT_OPTIMIZE };
+      const outputUpAxis = req.body?.outputUpAxis === 'z' ? 'z' : 'y';
 
       const now = Date.now();
       const job: Job = {
@@ -104,6 +105,7 @@ convertRouter.post(
         inputPath,
         inputSize: file.size,
         options,
+        outputUpAxis,
         createdAt: now,
         updatedAt: now,
       };

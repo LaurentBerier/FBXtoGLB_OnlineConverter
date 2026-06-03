@@ -19,6 +19,8 @@ export interface AssetSummary {
   textures: number;
   textureNames: string[];
   nodeNames: string[];
+  /** Source up-axis: 'y', 'z', or 'unknown' (glTF is always 'y'). */
+  upAxis: 'y' | 'z' | 'unknown';
   /** Non-fatal notes collected while inspecting. */
   notes: string[];
 }
@@ -38,6 +40,7 @@ export function emptySummary(): AssetSummary {
     textures: 0,
     textureNames: [],
     nodeNames: [],
+    upAxis: 'unknown',
     notes: [],
   };
 }

@@ -19,6 +19,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="GLB -> FBX via Blender")
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--up-axis", dest="up_axis", choices=["y", "z"], default="y")
     return parser.parse_args(argv)
 
 
@@ -57,6 +58,13 @@ def main():
     bpy.ops.import_scene.gltf(filepath=args.input, import_pack_images=True)
     summarize()
 
+    # Output up-axis: Y-up (glTF standard) or Z-up (Unreal / 3ds Max convention).
+    if args.up_axis == "z":
+        axis_up, axis_forward = "Z", "-Y"
+    else:
+        axis_up, axis_forward = "Y", "-Z"
+    print(f"[bridge] up_axis={args.up_axis} (axis_up={axis_up}, axis_forward={axis_forward})")
+
     # Export FBX with rigging + animation + materials preserved.
     bpy.ops.export_scene.fbx(
         filepath=args.output,
@@ -78,8 +86,8 @@ def main():
         bake_anim_force_startend_keying=True,
         path_mode="COPY",
         embed_textures=True,
-        axis_forward="-Z",
-        axis_up="Y",
+        axis_forward=axis_forward,
+        axis_up=axis_up,
     )
     print("[bridge] export complete")
 

@@ -19,6 +19,7 @@ const SCRIPT = path.join(__dirname, '..', 'scripts', 'glb_to_fbx.py');
 export async function convertGlbToFbx(
   inputPath: string,
   outputPath: string,
+  upAxis: 'y' | 'z' = 'y',
   onLog?: (line: string) => void,
 ): Promise<ConvertResult> {
   const tool = await detectBlender();
@@ -48,6 +49,8 @@ export async function convertGlbToFbx(
     inputPath,
     '--output',
     outputPath,
+    '--up-axis',
+    upAxis,
   ];
 
   log.info(`Running Blender GLB→FBX on ${path.basename(inputPath)}`);

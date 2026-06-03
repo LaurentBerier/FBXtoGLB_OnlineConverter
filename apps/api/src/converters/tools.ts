@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs/promises';
+import { readdirSync, existsSync } from 'node:fs';
 import { config } from '../config.js';
 import { pathExists } from '../util/files.js';
 import { logger } from '../util/logger.js';
@@ -29,13 +30,28 @@ const BLENDER_NAMES = isWin ? ['blender.exe', 'blender'] : ['blender'];
 /** Common install locations to probe when the binary is not on PATH. */
 function blenderGuesses(): string[] {
   if (isWin) {
-    const pf = process.env['ProgramFiles'] || 'C:/Program Files';
-    return [
-      `${pf}/Blender Foundation/Blender 4.2/blender.exe`,
-      `${pf}/Blender Foundation/Blender 4.1/blender.exe`,
-      `${pf}/Blender Foundation/Blender 4.0/blender.exe`,
-      `${pf}/Blender Foundation/Blender 3.6/blender.exe`,
-    ];
+    // Scan the "Blender Foundation" folder for any installed version (4.x, 5.x,
+    // future) rather than hardcoding versions, newest first.
+    const bases = [
+      process.env['ProgramW6432'],
+      process.env['ProgramFiles'],
+      process.env['ProgramFiles(x86)'],
+      'C:/Program Files',
+    ].filter((b): b is string => !!b);
+    const found: string[] = [];
+    for (const base of bases) {
+      const dir = path.join(base, 'Blender Foundation');
+      try {
+        for (const sub of readdirSync(dir)) {
+          const exe = path.join(dir, sub, 'blender.exe');
+          if (existsSync(exe) && !found.includes(exe)) found.push(exe);
+        }
+      } catch {
+        /* folder not present on this base — ignore */
+      }
+    }
+    found.sort().reverse(); // "Blender 5.1" before "Blender 4.2"
+    return found;
   }
   if (process.platform === 'darwin') {
     return ['/Applications/Blender.app/Contents/MacOS/Blender'];

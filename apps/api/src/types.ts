@@ -1,6 +1,7 @@
 import type { OptimizeOptions } from './converters/optimizeGlb.js';
 
 export type Direction = 'fbx2glb' | 'glb2fbx';
+export type OutputUpAxis = 'y' | 'z';
 
 export interface CompressionStats {
   beforeBytes: number;
@@ -56,6 +57,7 @@ export interface Job {
   inputPath: string;
   inputSize: number;
   options: OptimizeOptions;
+  outputUpAxis: OutputUpAxis;
   outputName?: string;
   outputPath?: string;
   outputSize?: number;

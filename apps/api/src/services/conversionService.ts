@@ -7,6 +7,7 @@ import { fileSize, swapExt } from '../util/files.js';
 import { convertFbxToGlb } from '../converters/fbx2glb.js';
 import { convertGlbToFbx } from '../converters/glb2fbx.js';
 import { hasAnyOptimization, optimizeGlb } from '../converters/optimizeGlb.js';
+import { makeGlbZUp } from '../converters/upAxis.js';
 import { inspectFbx } from '../validation/fbxInspect.js';
 import { inspectGlb } from '../validation/gltfInspect.js';
 import { buildReport } from '../validation/report.js';
@@ -44,7 +45,15 @@ export async function runConversion(jobId: string): Promise<void> {
     const result =
       job.direction === 'fbx2glb'
         ? await convertFbxToGlb(job.inputPath, outputPath, onLog)
-        : await convertGlbToFbx(job.inputPath, outputPath, onLog);
+        : await convertGlbToFbx(job.inputPath, outputPath, job.outputUpAxis, onLog);
+
+    // 2a. Output orientation — GLB is Y-up by spec; re-author as Z-up if asked.
+    if (job.direction === 'fbx2glb' && job.outputUpAxis === 'z') {
+      jobStore.setStatus(jobId, 'converting', { percent: 50, label: 'Applying Z-up orientation' });
+      await makeGlbZUp(result.outputPath).catch((err) =>
+        log.warn(`job ${jobId} up-axis rewrite failed`, (err as Error).message),
+      );
+    }
 
     // 2b. Optional optimization (Draco / texture / cleanup) — GLB output only.
     const optimizeNotes: string[] = [];
