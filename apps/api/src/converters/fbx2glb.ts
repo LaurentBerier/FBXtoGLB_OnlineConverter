@@ -14,10 +14,13 @@ export class ConverterUnavailableError extends Error {}
 export class ConversionFailedError extends Error {}
 
 /**
- * Convert an FBX file to a binary GLB using FBX2glTF, which preserves
- * skeletons, skin clusters, animations and PBR materials with embedded textures.
+ * Convert an FBX file to a binary GLB using FBX2glTF. Used as the fallback
+ * engine when Blender is unavailable (see fbx2glbBlender.ts). FBX2glTF preserves
+ * skeletons, skin clusters and animations well, but on legacy (Phong/Lambert)
+ * materials it does not link normal/PBR maps and embeds textures in their source
+ * format (e.g. .tga, which GLB doesn't support) — the Blender path avoids both.
  */
-export async function convertFbxToGlb(
+export async function convertFbxToGlbViaFbx2gltf(
   inputPath: string,
   outputPath: string,
   onLog?: (line: string) => void,
@@ -31,20 +34,23 @@ export async function convertFbxToGlb(
   }
 
   const notes: string[] = [];
-  if (tool.version) notes.push(`Engine: ${tool.version}`);
+  if (tool.version) notes.push(`Engine: ${tool.version} (FBX2glTF)`);
 
-  // --binary => .glb, --embed => embed textures, --pbr-metallic-roughness => keep PBR,
-  // --keep-attribute auto keeps normals/uv/joints/weights/colors as present.
+  // --binary => .glb, --pbr-metallic-roughness => keep PBR. We intentionally do
+  // NOT pass `--keep-attribute`: that flag is a *limiting* whitelist and, with
+  // `auto`, FBX2glTF drops NORMAL/TANGENT — producing faceted, flat-shaded
+  // output. Omitting it keeps every attribute the mesh actually has.
+  // `--compute-normals missing` is a safety net for meshes that ship without
+  // normals at all.
   const args = [
     '--input',
     inputPath,
     '--output',
     outputPath,
     '--binary',
-    '--embed',
     '--pbr-metallic-roughness',
-    '--keep-attribute',
-    'auto',
+    '--compute-normals',
+    'missing',
   ];
 
   log.info(`Running FBX2glTF on ${path.basename(inputPath)}`);

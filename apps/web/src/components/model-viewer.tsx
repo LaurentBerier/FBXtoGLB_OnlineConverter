@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import * as THREE from 'three';
-import { Canvas, useLoader, useFrame } from '@react-three/fiber';
+import { Canvas, useLoader, useFrame, useThree } from '@react-three/fiber';
 import {
   OrbitControls,
   Grid,
@@ -52,7 +52,7 @@ interface ModelProps {
   playing: boolean;
   /** Overlay the rig's bones (skinned meshes only). */
   skeleton: boolean;
-  /** Rotate Z-up content upright to Y-up for display. */
+  /** Show the model genuinely Z-up (scene up-axis = Z) instead of Y-up. */
   zUp: boolean;
   onReady: (info: ReadyInfo) => void;
 }
@@ -244,16 +244,21 @@ function suggestUpAxis(group: THREE.Object3D): UpAxis | undefined {
   return undefined;
 }
 
-/** Upright (Z-up→Y-up), normalize size to TARGET_SIZE, and center at origin. */
+/**
+ * Normalize size to TARGET_SIZE and center at origin, keeping the model's
+ * native orientation. We do NOT rotate Z-up content upright — instead the scene
+ * (camera up-vector, grid, gizmo) is oriented to the up-axis (see
+ * `SceneOrientation`), so a Z-up asset is shown genuinely Z-up. `halfHeight` is
+ * the half-extent along the *display* up-axis, used to drop the ground plane
+ * under the model.
+ */
 function normalizeAndCenter(group: THREE.Object3D, zUp: boolean, detectOrient: boolean): Prepared {
   group.rotation.set(0, 0, 0);
   group.scale.setScalar(1);
   group.position.set(0, 0, 0);
 
-  // Measure orientation from raw coordinates before any uprighting rotation.
   const suggested = detectOrient ? suggestUpAxis(group) : undefined;
 
-  group.rotation.set(zUp ? -Math.PI / 2 : 0, 0, 0);
   const box = geometryBox(group);
   if (box.isEmpty()) return { measure: { halfHeight: TARGET_SIZE / 2 }, suggested };
   const size = new THREE.Vector3();
@@ -265,7 +270,38 @@ function normalizeAndCenter(group: THREE.Object3D, zUp: boolean, detectOrient: b
   const s = TARGET_SIZE / maxDim;
   group.scale.setScalar(s);
   group.position.copy(center).multiplyScalar(-s);
-  return { measure: { halfHeight: (size.y * s) / 2 || TARGET_SIZE / 2 }, suggested };
+  const up = (zUp ? size.z : size.y) * s;
+  return { measure: { halfHeight: up / 2 || TARGET_SIZE / 2 }, suggested };
+}
+
+/**
+ * Orient the scene to the model's up-axis. Rather than rotating the model to fit
+ * a fixed Y-up world, we move the camera's up-vector (and reframe), so a Z-up
+ * asset is shown genuinely Z-up. The world gizmo follows automatically because
+ * it mirrors the main camera's orientation; the grid and contact shadow are
+ * reoriented alongside (see the floor group in the Canvas).
+ */
+function SceneOrientation({ zUp }: { zUp: boolean }) {
+  const camera = useThree((s) => s.camera);
+  const controls = useThree((s) => s.controls) as
+    | { target: THREE.Vector3; update: () => void }
+    | null;
+  React.useEffect(() => {
+    if (zUp) {
+      camera.up.set(0, 0, 1);
+      camera.position.set(3.0, -3.6, 2.4);
+    } else {
+      camera.up.set(0, 1, 0);
+      camera.position.set(2.6, 1.8, 3.4);
+    }
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    } else {
+      camera.lookAt(0, 0, 0);
+    }
+  }, [zUp, camera, controls]);
+  return null;
 }
 
 function useClipPlayback(
@@ -405,7 +441,7 @@ interface ModelViewerProps {
   src: string | null;
   format: ViewerFormat;
   label?: string;
-  /** Source up-axis; when 'z' the model is rotated upright for display. */
+  /** Source up-axis; when 'z' the scene is shown Z-up (up-vector, grid & gizmo). */
   sourceUpAxis?: UpAxis;
   className?: string;
 }
@@ -509,6 +545,9 @@ export default function ModelViewer({ src, format, label, sourceUpAxis, classNam
               <directionalLight color="#ffffff" position={[-1.5, 5, -6]} intensity={1.3} />
               <StudioEnvironment />
 
+              {/* Orient the camera's up-vector (and gizmo) to the model's up-axis. */}
+              <SceneOrientation zUp={zUp} />
+
               <ViewerErrorBoundary onError={() => setFailed(true)}>
                 {format === 'glb' ? (
                   <GlbModel src={src} wireframe={wireframe} playing={playing} skeleton={skeleton} zUp={zUp} onReady={onReady} />
@@ -517,23 +556,30 @@ export default function ModelViewer({ src, format, label, sourceUpAxis, classNam
                 )}
               </ViewerErrorBoundary>
 
-              <ContactShadows position={[0, groundY, 0]} scale={6} far={4} blur={2.6} opacity={0.45} resolution={1024} />
+              {/* Floor (grid + contact shadow). Both are authored as a Y-up floor;
+                  rigidly rotating the assembly 90° about X drops it onto the XY
+                  plane for Z-up display, so the model always sits on the grid. */}
+              <group
+                rotation={zUp ? [Math.PI / 2, 0, 0] : [0, 0, 0]}
+                position={zUp ? [0, 0, groundY] : [0, groundY, 0]}
+              >
+                <ContactShadows position={[0, 0, 0]} scale={6} far={4} blur={2.6} opacity={0.45} resolution={1024} />
 
-              {grid && (
-                <Grid
-                  position={[0, groundY, 0]}
-                  args={[30, 30]}
-                  cellSize={0.5}
-                  cellThickness={0.5}
-                  cellColor="#5a5a5a"
-                  sectionSize={2.5}
-                  sectionThickness={1}
-                  sectionColor="#7c3aed"
-                  fadeDistance={30}
-                  fadeStrength={1.4}
-                  infiniteGrid
-                />
-              )}
+                {grid && (
+                  <Grid
+                    args={[30, 30]}
+                    cellSize={0.5}
+                    cellThickness={0.5}
+                    cellColor="#5a5a5a"
+                    sectionSize={2.5}
+                    sectionThickness={1}
+                    sectionColor="#7c3aed"
+                    fadeDistance={30}
+                    fadeStrength={1.4}
+                    infiniteGrid
+                  />
+                )}
+              </group>
 
               <OrbitControls
                 makeDefault
@@ -549,7 +595,8 @@ export default function ModelViewer({ src, format, label, sourceUpAxis, classNam
                 dampingFactor={0.08}
               />
 
-              {/* World-axis gizmo (Y is up) — click an axis to snap the view. */}
+              {/* World-axis gizmo — follows the scene up-axis (Y or Z, see
+                  SceneOrientation). Click an axis to snap the view. */}
               <GizmoHelper alignment="bottom-left" margin={[64, 72]}>
                 <GizmoViewport
                   axisColors={['#ff4d6d', '#52c41a', '#4d94ff']}

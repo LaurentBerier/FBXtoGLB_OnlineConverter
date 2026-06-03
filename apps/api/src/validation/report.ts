@@ -67,8 +67,23 @@ export function buildReport(
     checks.push({ key: 'skinning', label: 'Skinning', status: 'ok', detail: 'No skinning in source' });
   }
 
-  // Animation
-  const anim = countCheck('animations', 'Animations', source.animations, output.animations, 'clips preserved');
+  // Animation. An FBX often ships an empty "Take 001" placeholder (an
+  // AnimationStack with no curves → 0 keyframes). It isn't a real clip, and
+  // correct exporters (e.g. Blender) drop it — so don't count that as a loss.
+  const sourceHasOnlyEmptyTakes = source.animations > 0 && source.keyframes === 0;
+  const anim: ReportCheck = sourceHasOnlyEmptyTakes
+    ? {
+        key: 'animations',
+        label: 'Animations',
+        status: 'ok',
+        detail:
+          output.animations > 0
+            ? `${output.animations} present (source had only an empty take)`
+            : 'No animation in source (empty take ignored)',
+        source: source.animations,
+        output: output.animations,
+      }
+    : countCheck('animations', 'Animations', source.animations, output.animations, 'clips preserved');
   checks.push(anim);
   if (source.keyframes > 0 || output.keyframes > 0) {
     const kfStatus = output.keyframes >= source.keyframes || source.keyframes === 0 ? 'ok' : 'warn';
@@ -109,6 +124,20 @@ export function buildReport(
     notes.push(
       `${dropped} texture(s) not written to FBX — glTF packs metallic/roughness/occlusion into maps ` +
         `that FBX's material model has no standard slot for. Base color and normal maps are preserved.`,
+    );
+  }
+  // FBX→GLB texture shortfall: name what the source carried (GLB textures are
+  // renamed by the engine, so a name-match isn't reliable — list the source side)
+  // and the most likely cause, so a failed check is actionable rather than opaque.
+  if (direction === 'fbx2glb' && output.textures < source.textures) {
+    const dropped = source.textures - output.textures;
+    const srcNames = source.textureNames.filter(Boolean).join(', ') || 'unnamed';
+    notes.push(
+      `${dropped} of ${source.textures} source texture(s) were not embedded in the GLB ` +
+        `(${output.textures} made it). Source textures: ${srcNames}. ` +
+        `This typically happens on the FBX2glTF fallback engine, which doesn't link normal/PBR ` +
+        `maps on legacy (Phong/Lambert) materials. The Blender engine preserves them — see the ` +
+        `Engine note above for which engine ran.`,
     );
   }
   const boneNote = nameMatchNote('Bone names', source.boneNames, output.boneNames);

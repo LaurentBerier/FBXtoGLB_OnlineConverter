@@ -204,7 +204,7 @@ export function Converter() {
                   {inputUpAxis === 'z' ? 'Z-up' : 'Y-up'}
                 </span>{' '}
                 orientation
-                {inputUpAxis === 'z' && ' — shown upright (rotated to Y-up) in the preview'}.
+                {inputUpAxis === 'z' && ' — previewed in its native Z-up orientation'}.
               </p>
             )}
           </div>
@@ -286,10 +286,11 @@ export function Converter() {
             <ModelViewer
               src={downloadUrl(job.id)}
               format={job.direction === 'fbx2glb' ? 'glb' : 'fbx'}
-              // GLB output is Y-up; an FBX exported Z-up is shown upright. Use the
-              // axis the job was built with, not the live toggle (which the user
-              // may have changed since), so the preview can't tip over.
-              sourceUpAxis={job.direction === 'glb2fbx' ? convertedUpAxis : 'y'}
+              // Preview the result in the orientation it was actually exported
+              // with — a Z-up output (re-authored GLB or Z-up FBX) is shown Z-up.
+              // Use the axis the job was built with, not the live toggle (which the
+              // user may have changed since), so the preview matches the file.
+              sourceUpAxis={convertedUpAxis}
               label="Result"
             />
             {job.compression && (

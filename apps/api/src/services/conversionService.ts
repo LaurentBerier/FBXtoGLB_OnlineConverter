@@ -4,8 +4,10 @@ import { Job } from '../types.js';
 import { jobStore } from '../queue/jobStore.js';
 import { logger } from '../util/logger.js';
 import { fileSize, swapExt } from '../util/files.js';
-import { convertFbxToGlb } from '../converters/fbx2glb.js';
+import { ConvertResult, convertFbxToGlbViaFbx2gltf } from '../converters/fbx2glb.js';
+import { convertFbxToGlbViaBlender } from '../converters/fbx2glbBlender.js';
 import { convertGlbToFbx } from '../converters/glb2fbx.js';
+import { detectBlender } from '../converters/tools.js';
 import { hasAnyOptimization, optimizeGlb } from '../converters/optimizeGlb.js';
 import { makeGlbZUp } from '../converters/upAxis.js';
 import { inspectFbx } from '../validation/fbxInspect.js';
@@ -109,6 +111,35 @@ export async function runConversion(jobId: string): Promise<void> {
       error: message,
     });
   }
+}
+
+/**
+ * FBX→GLB engine selection: prefer Blender (full materials — normal maps,
+ * tangents, PNG textures), and fall back to FBX2glTF when Blender is unavailable
+ * or errors out. A note records which engine actually ran so the report is clear.
+ */
+async function convertFbxToGlb(
+  inputPath: string,
+  outputPath: string,
+  onLog: (line: string) => void,
+): Promise<ConvertResult> {
+  const blender = await detectBlender();
+  if (blender.available) {
+    try {
+      return await convertFbxToGlbViaBlender(inputPath, outputPath, onLog);
+    } catch (err) {
+      log.warn(`Blender FBX→GLB failed, falling back to FBX2glTF: ${(err as Error).message}`);
+      onLog(`Blender failed (${(err as Error).message}); trying FBX2glTF fallback`);
+    }
+  }
+  const result = await convertFbxToGlbViaFbx2gltf(inputPath, outputPath, onLog);
+  result.notes.push(
+    blender.available
+      ? 'Used FBX2glTF fallback after Blender failed — normal/PBR maps may be missing.'
+      : 'Blender not installed — used FBX2glTF, which can drop normal/PBR maps and embeds ' +
+          'textures in their source format. Install Blender for full material fidelity.',
+  );
+  return result;
 }
 
 async function inspectSource(job: Job): Promise<AssetSummary> {

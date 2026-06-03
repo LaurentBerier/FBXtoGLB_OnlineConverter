@@ -26,7 +26,8 @@ healthRouter.get('/capabilities', async (_req: Request, res: Response) => {
       blender: { available: tools.blender.available, version: tools.blender.version },
     },
     directions: {
-      fbx2glb: tools.fbx2gltf.available,
+      // FBX→GLB runs on Blender (preferred) or FBX2glTF (fallback) — either works.
+      fbx2glb: tools.blender.available || tools.fbx2gltf.available,
       glb2fbx: tools.blender.available,
     },
     // Optimization runs in-process (gltf-transform), always available for GLB output.
