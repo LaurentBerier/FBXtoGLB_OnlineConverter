@@ -1,9 +1,14 @@
-# FBX ⇄ GLB Converter
+# Sandscape · 3D Converter (FBX ⇄ GLB)
 
-A lightweight, professional web app for **high-fidelity FBX ↔ GLB conversion** that
-preserves geometry, skeletons, skinning, animations, PBR materials and textures —
-so a rigged character from Maya, Blender, 3ds Max, Mixamo, Unreal, Unity or Rokoko
+A **Sandscape** tool — part of the Sandscape ecosystem. A lightweight,
+professional web app for **high-fidelity FBX ↔ GLB conversion** that preserves
+geometry, skeletons, skinning, animations, PBR materials and textures — so a
+rigged character from Maya, Blender, 3ds Max, Mixamo, Unreal, Unity or Rokoko
 survives the round-trip.
+
+Styled to match the Sandscape brand (violet `hsl(269 84% 45%)`, Inter), with
+**light/dark mode**, an in-browser **3D viewer** (studio lighting, contact
+shadows, **animation playback**) and optional GLB **optimization**.
 
 Every conversion ships a **validation report**:
 
@@ -29,9 +34,23 @@ and produces a side-by-side fidelity report.
 
 ### Preview & optimize
 
-- **3D preview** — an in-browser Three.js viewer (orbit, wireframe, auto-rotate,
-  grid) shows the model before conversion and the result after, for both GLB and
-  FBX. Loaded lazily so the landing page stays light.
+- **3D preview** — an in-browser Three.js viewer with HDRI studio lighting (the
+  same "citrus orchard" environment as the 3D GLB Painter), contact shadows and
+  ACES tone mapping (orbit, **animation play/pause**, **skeleton overlay**,
+  wireframe, auto-rotate, grid, **fullscreen**) shows the model before conversion
+  and the result after, for both GLB and FBX. Loaded lazily so the landing page
+  stays light. FBX previews are hardened against Unreal/Maya exports (missing
+  external textures, layered textures and animation curves that would otherwise
+  crash `FBXLoader`) — see `patches/three-stdlib+*.patch`, applied automatically
+  on `npm install`.
+
+  > **FBX textures in the preview:** the preview only has the single file you
+  > upload. FBX commonly stores textures as *external* image files (e.g.
+  > `MI_Foo_BaseColor_0.png`) referenced by name rather than embedded — those
+  > files aren't part of the upload, so the model shows as neutral clay. To see
+  > textures, re-export the FBX with **Embed Media** enabled (Maya/3ds Max FBX
+  > export → *Embedded Media*) so the images travel inside the `.fbx`. GLB always
+  > embeds its textures, so GLB previews are unaffected.
 - **Optimization** (FBX→GLB output) — optional, never on by default:
   - **Draco** geometry compression (skin weights kept at high precision),
   - texture **resize** + re-encode to **WebP/JPEG**,

@@ -27,8 +27,10 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 
-# binaries (downloaded conversion tools)
+# binaries (downloaded conversion tools — local dev only; prod bundles them in the image)
 bin/FBX2glTF*
+**/bin/FBX2glTF*
+apps/api/bin/
 !bin/.gitkeep
 
 # test artifacts

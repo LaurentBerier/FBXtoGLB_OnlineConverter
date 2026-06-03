@@ -8,6 +8,10 @@
 .git
 .gitignore
 .env
+**/.env
 **/.env.local
+# Local dev engine binaries — the image installs Linux engines itself.
+**/bin/FBX2glTF*
+apps/api/bin
 README.md
 docs

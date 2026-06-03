@@ -16,10 +16,12 @@
     "build:web": "npm run build --workspace apps/web",
     "start:api": "npm run start --workspace apps/api",
     "typecheck": "npm run typecheck --workspace apps/api && npm run typecheck --workspace apps/web",
-    "doctor": "npm run doctor --workspace apps/api"
+    "doctor": "npm run doctor --workspace apps/api",
+    "postinstall": "patch-package"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "concurrently": "^9.1.0",
+    "patch-package": "^8.0.1"
   },
   "engines": {
     "node": ">=20"
