@@ -1,12 +1,26 @@
 # Setup — installing the conversion engines
 
-The app needs two external engines. You only need the one(s) for the directions
-you want:
+> **Fastest path:** run the one-shot setup script for your OS — it installs Node
+> **and Blender**, the JS dependencies, and verifies everything:
+>
+> ```bash
+> ./setup.sh                                            # macOS / Linux
+> powershell -ExecutionPolicy Bypass -File setup.ps1    # Windows (or double-click setup.bat)
+> ```
+>
+> The rest of this document is the manual reference.
 
-| Direction   | Engine    |
-|-------------|-----------|
-| FBX → GLB   | FBX2glTF  |
-| GLB → FBX   | Blender   |
+**Blender is the only engine you need** — it drives **both** conversion
+directions:
+
+| Direction   | Engine                                   |
+|-------------|------------------------------------------|
+| FBX → GLB   | Blender (FBX2glTF optional fallback)     |
+| GLB → FBX   | Blender                                  |
+
+FBX2glTF is only used for FBX → GLB when Blender isn't available, and Blender
+produces better results (smooth normals, linked normal/PBR maps, PNG textures),
+so installing it is optional.
 
 Run `npm run doctor` at any time to see what's detected:
 
@@ -22,8 +36,9 @@ The API auto-detects binaries in this order:
 
 ---
 
-## FBX2glTF (for FBX → GLB)
+## FBX2glTF (optional fallback for FBX → GLB)
 
+Only needed if you want an FBX → GLB fallback for machines without Blender.
 Download a prebuilt binary from the
 [godotengine/FBX2glTF releases](https://github.com/godotengine/FBX2glTF/releases)
 (the [facebookincubator/FBX2glTF](https://github.com/facebookincubator/FBX2glTF)
@@ -48,7 +63,7 @@ Verify: `FBX2glTF --version`
 
 ---
 
-## Blender (for GLB → FBX)
+## Blender (required — drives both directions)
 
 Install **Blender 3.6+ (4.x recommended)** from
 <https://www.blender.org/download/>. The app runs it headless

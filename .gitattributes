@@ -1,0 +1,13 @@
+# Cross-platform line endings.
+#
+# Shell and Python/Blender bridge scripts MUST stay LF so they run on
+# macOS/Linux and inside the Linux Docker image, even when committed from a
+# Windows checkout (where core.autocrlf=true would otherwise rewrite them to
+# CRLF and produce "bad interpreter" / parse errors).
+*.sh        text eol=lf
+*.command   text eol=lf
+*.py        text eol=lf
+
+# Windows-only scripts stay CRLF.
+*.bat       text eol=crlf
+*.ps1       text eol=crlf

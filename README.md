@@ -25,8 +25,11 @@ Every conversion ships a **validation report**:
 
 | Direction   | Engine                          | Why |
 |-------------|---------------------------------|-----|
-| **FBX → GLB** | [FBX2glTF](https://github.com/godotengine/FBX2glTF) | Best-in-class preservation of skeletons, skin clusters, animations and PBR materials. |
+| **FBX → GLB** | Headless **Blender** + Python — [FBX2glTF](https://github.com/godotengine/FBX2glTF) fallback | Blender preserves smooth normals + tangents, links normal/PBR maps and re-encodes textures to PNG (GLB-conformant). FBX2glTF is used only when Blender is unavailable. |
 | **GLB → FBX** | Headless **Blender** + Python   | Blender's glTF importer + FBX exporter retains armature, skin weights, animation actions and materials. |
+
+> **Blender is the only engine you need** — it drives both directions; FBX2glTF
+> is an optional fallback. The setup scripts below install it for you.
 
 After conversion the API independently **inspects** the source and the output
 (geometry, bones, skin weights, animation clips/keyframes, materials, textures)
@@ -79,9 +82,30 @@ docker-compose.yml    web + worker
 
 ## Quick start (local dev)
 
-Prerequisites: Node 20+, and the conversion engines installed — see
-[SETUP.md](./SETUP.md). You can run the UI without engines; conversions will
-report a clear "engine not installed" message.
+### One-shot setup (recommended — fresh Mac or PC)
+
+These scripts install **Node 20+** and **Blender**, install JS dependencies,
+seed the local env files, and verify everything with `doctor`:
+
+```bash
+# macOS / Linux
+./setup.sh        # then:  npm run dev   (or ./start.sh)
+
+# Windows — double-click setup.bat, or from PowerShell:
+powershell -ExecutionPolicy Bypass -File setup.ps1   # then: npm run dev  (or start.bat)
+```
+
+Then open <http://localhost:3000>.
+
+> The scripts use the OS package manager (Homebrew on macOS, `winget` on
+> Windows, apt/snap on Linux). If one isn't available they print the exact
+> download links so you can install Node/Blender manually, then re-run.
+
+### Manual setup
+
+Prerequisites: Node 20+, and Blender installed (see [SETUP.md](./SETUP.md)). You
+can run the UI without an engine; conversions then report a clear "engine not
+installed" message.
 
 ```bash
 npm install
