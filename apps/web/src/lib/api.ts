@@ -4,6 +4,7 @@ export const API_BASE =
 export type Direction = 'fbx2glb' | 'glb2fbx';
 
 export type TextureFormat = 'keep' | 'webp' | 'jpeg';
+export type OutputUpAxis = 'y' | 'z';
 
 export interface OptimizeOptions {
   draco: boolean;
@@ -99,6 +100,7 @@ export async function startConversion(
   file: File,
   direction: Direction,
   options: OptimizeOptions,
+  outputUpAxis: OutputUpAxis,
   onUploadProgress?: (percent: number) => void,
 ): Promise<JobView> {
   // XHR so we can report upload progress (fetch can't, pre-streams).
@@ -110,6 +112,7 @@ export async function startConversion(
     form.append('cleanup', String(options.cleanup));
     form.append('textureFormat', options.textureFormat);
     form.append('maxTextureSize', String(options.maxTextureSize));
+    form.append('outputUpAxis', outputUpAxis);
     form.append('file', file);
 
     const xhr = new XMLHttpRequest();

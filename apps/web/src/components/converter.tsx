@@ -11,6 +11,7 @@ import { FormatSelector } from '@/components/format-selector';
 import { OptionsPanel } from '@/components/options-panel';
 import { ReportCard } from '@/components/report-card';
 import { cn, formatBytes } from '@/lib/utils';
+import { detectFbxUpAxis, type UpAxis } from '@/lib/fbx-axis';
 import {
   fetchCapabilities,
   fetchJob,
@@ -21,6 +22,7 @@ import {
   type Direction,
   type JobView,
   type OptimizeOptions,
+  type OutputUpAxis,
 } from '@/lib/api';
 
 // Three.js viewer is client-only (no SSR) and lazy-loaded to keep the page light.
@@ -60,6 +62,8 @@ export function Converter() {
   const [error, setError] = React.useState<string | null>(null);
   const [options, setOptions] = React.useState<OptimizeOptions>(DEFAULT_OPTIONS);
   const [inputUrl, setInputUrl] = React.useState<string | null>(null);
+  const [inputUpAxis, setInputUpAxis] = React.useState<UpAxis>('unknown');
+  const [outputUpAxis, setOutputUpAxis] = React.useState<OutputUpAxis>('y');
   const pollRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Build an object URL for the local file so we can preview it before converting.
@@ -71,6 +75,25 @@ export function Converter() {
     const url = URL.createObjectURL(file);
     setInputUrl(url);
     return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  // Detect the up-axis of the chosen file (GLB/glTF is always Y-up).
+  React.useEffect(() => {
+    if (!file) {
+      setInputUpAxis('unknown');
+      return;
+    }
+    let cancelled = false;
+    if (file.name.toLowerCase().endsWith('.fbx')) {
+      detectFbxUpAxis(file)
+        .then((axis) => !cancelled && setInputUpAxis(axis))
+        .catch(() => !cancelled && setInputUpAxis('unknown'));
+    } else {
+      setInputUpAxis('y');
+    }
+    return () => {
+      cancelled = true;
+    };
   }, [file]);
 
   // Load server capabilities (engine availability, limits).
@@ -119,7 +142,7 @@ export function Converter() {
     setUploadPct(0);
     setPhase('uploading');
     try {
-      const created = await startConversion(file, direction, options, setUploadPct);
+      const created = await startConversion(file, direction, options, outputUpAxis, setUploadPct);
       setJob(created);
       setPhase('processing');
       poll(created.id);
@@ -144,7 +167,7 @@ export function Converter() {
     phase === 'uploading' ? `Uploading… ${uploadPct}%` : job?.progress.label || 'Working…';
 
   return (
-    <Card className="shadow-md">
+    <Card className="border-border/70 bg-card/80 shadow-brand backdrop-blur-xl">
       <CardContent className="space-y-6 p-6 sm:p-8">
         <Dropzone
           file={file}
@@ -155,7 +178,24 @@ export function Converter() {
 
         {/* Preview the chosen file before conversion. */}
         {file && inputUrl && phase !== 'done' && (
-          <ModelViewer src={inputUrl} format={extFormat(file.name)} label="Input preview" />
+          <div className="space-y-2">
+            <ModelViewer
+              src={inputUrl}
+              format={extFormat(file.name)}
+              sourceUpAxis={inputUpAxis}
+              label="Input preview"
+            />
+            {inputUpAxis !== 'unknown' && (
+              <p className="text-xs text-muted-foreground">
+                Detected{' '}
+                <span className="font-medium text-foreground">
+                  {inputUpAxis === 'z' ? 'Z-up' : 'Y-up'}
+                </span>{' '}
+                orientation
+                {inputUpAxis === 'z' && ' — shown upright (rotated to Y-up) in the preview'}.
+              </p>
+            )}
+          </div>
         )}
 
         <div className="space-y-2">
@@ -171,6 +211,34 @@ export function Converter() {
             available={caps.directions}
             disabled={busy}
           />
+        </div>
+
+        {/* Output orientation */}
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Output orientation</p>
+            <p className="text-xs text-muted-foreground">
+              {direction === 'fbx2glb' ? 'Y-up is the glTF standard' : 'Z-up suits Unreal / 3ds Max'}
+            </p>
+          </div>
+          <div className="flex overflow-hidden rounded-lg border border-border">
+            {(['y', 'z'] as OutputUpAxis[]).map((ax) => (
+              <button
+                key={ax}
+                type="button"
+                disabled={busy}
+                onClick={() => setOutputUpAxis(ax)}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+                  outputUpAxis === ax
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background hover:bg-accent',
+                )}
+              >
+                {ax === 'y' ? 'Y-up' : 'Z-up'}
+              </button>
+            ))}
+          </div>
         </div>
 
         <OptionsPanel
@@ -206,6 +274,8 @@ export function Converter() {
             <ModelViewer
               src={downloadUrl(job.id)}
               format={job.direction === 'fbx2glb' ? 'glb' : 'fbx'}
+              // GLB output is Y-up; an FBX exported Z-up is shown upright.
+              sourceUpAxis={job.direction === 'glb2fbx' ? outputUpAxis : 'y'}
               label="Result"
             />
             {job.compression && (
@@ -239,6 +309,7 @@ export function Converter() {
           {phase !== 'done' ? (
             <Button
               size="lg"
+              variant="brand"
               className="flex-1"
               disabled={!file || busy || !caps.directions[direction]}
               onClick={handleConvert}
@@ -251,7 +322,7 @@ export function Converter() {
               <a
                 href={job ? downloadUrl(job.id) : '#'}
                 download
-                className={cn(buttonVariants({ size: 'lg' }), 'flex-1')}
+                className={cn(buttonVariants({ variant: 'brand', size: 'lg' }), 'flex-1')}
               >
                 <Download className="h-4 w-4" />
                 Download {job?.outputName}
