@@ -1,0 +1,60 @@
+diff --git a/node_modules/three-stdlib/loaders/FBXLoader.cjs b/node_modules/three-stdlib/loaders/FBXLoader.cjs
+index eb917b9..c27322b 100644
+--- a/node_modules/three-stdlib/loaders/FBXLoader.cjs
++++ b/node_modules/three-stdlib/loaders/FBXLoader.cjs
+@@ -392,7 +392,8 @@ class FBXTreeParser {
+   getTexture(textureMap, id) {
+     if ("LayeredTexture" in fbxTree.Objects && id in fbxTree.Objects.LayeredTexture) {
+       console.warn("THREE.FBXLoader: layered textures are not supported in three.js. Discarding all but first layer.");
+-      id = connections.get(id).children[0].ID;
++      const _conn = connections.get(id);
++      if (_conn && _conn.children && _conn.children[0]) id = _conn.children[0].ID;
+     }
+     return textureMap.get(id);
+   }
+@@ -1440,6 +1441,7 @@ class AnimationParser {
+       if (connection !== void 0) {
+         const children = connection.children;
+         children.forEach(function(child, i) {
++          try {
+           if (curveNodesMap.has(child.ID)) {
+             const curveNode = curveNodesMap.get(child.ID);
+             if (curveNode.curves.x !== void 0 || curveNode.curves.y !== void 0 || curveNode.curves.z !== void 0) {
+@@ -1496,6 +1498,7 @@ class AnimationParser {
+               layerCurveNodes[i][curveNode.attr] = curveNode;
+             }
+           }
++          } catch (_e) { /* skip curves with broken/unsupported connection chains */ }
+         });
+         layersMap.set(parseInt(nodeID), layerCurveNodes);
+       }
+diff --git a/node_modules/three-stdlib/loaders/FBXLoader.js b/node_modules/three-stdlib/loaders/FBXLoader.js
+index 2031d36..139a21e 100644
+--- a/node_modules/three-stdlib/loaders/FBXLoader.js
++++ b/node_modules/three-stdlib/loaders/FBXLoader.js
+@@ -390,7 +390,8 @@ class FBXTreeParser {
+   getTexture(textureMap, id) {
+     if ("LayeredTexture" in fbxTree.Objects && id in fbxTree.Objects.LayeredTexture) {
+       console.warn("THREE.FBXLoader: layered textures are not supported in three.js. Discarding all but first layer.");
+-      id = connections.get(id).children[0].ID;
++      const _conn = connections.get(id);
++      if (_conn && _conn.children && _conn.children[0]) id = _conn.children[0].ID;
+     }
+     return textureMap.get(id);
+   }
+@@ -1438,6 +1439,7 @@ class AnimationParser {
+       if (connection !== void 0) {
+         const children = connection.children;
+         children.forEach(function(child, i) {
++          try {
+           if (curveNodesMap.has(child.ID)) {
+             const curveNode = curveNodesMap.get(child.ID);
+             if (curveNode.curves.x !== void 0 || curveNode.curves.y !== void 0 || curveNode.curves.z !== void 0) {
+@@ -1494,6 +1496,7 @@ class AnimationParser {
+               layerCurveNodes[i][curveNode.attr] = curveNode;
+             }
+           }
++          } catch (_e) { /* skip curves with broken/unsupported connection chains */ }
+         });
+         layersMap.set(parseInt(nodeID), layerCurveNodes);
+       }

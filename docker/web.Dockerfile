@@ -7,6 +7,13 @@ FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 COPY apps/web/package.json ./package.json
 RUN npm install
+# Apply the three-stdlib FBXLoader hardening patch. In local dev this runs via the
+# repo-root postinstall; the web image installs only apps/web, so replicate it here
+# (patch-package reads ./patches and patches node_modules) before the Next build —
+# otherwise the bundled FBXLoader ships un-patched. three-stdlib is pinned exactly
+# in package.json so the version-locked patch always applies.
+COPY patches ./patches
+RUN npx --yes patch-package
 COPY apps/web/ ./
 # NEXT_PUBLIC_* must be present at build time to be inlined into the client bundle.
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000

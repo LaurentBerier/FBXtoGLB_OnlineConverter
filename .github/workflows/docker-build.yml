@@ -1,0 +1,55 @@
+name: docker-build
+
+# Verifies that both container images build from a clean checkout — the remote
+# deployment path. Runs on Linux runners, so it needs no local Docker/WSL setup.
+# Images are built but NOT pushed (no registry/secrets required).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'docker/**'
+      - 'docker-compose.yml'
+      - '.dockerignore'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'docker/**'
+      - '.dockerignore'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: build ${{ matrix.image }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: worker
+            dockerfile: docker/worker.Dockerfile
+          - image: web
+            dockerfile: docker/web.Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.image }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: false
+          load: false
+          tags: fbxglb-${{ matrix.image }}:ci
+          # Reuse layers across runs (worker pulls Blender + FBX2glTF — large).
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
