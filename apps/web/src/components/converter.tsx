@@ -52,6 +52,15 @@ function directionForFile(name: string): Direction {
   return name.toLowerCase().endsWith('.fbx') ? 'fbx2glb' : 'glb2fbx';
 }
 
+function optionsEqual(a: OptimizeOptions, b: OptimizeOptions): boolean {
+  return (
+    a.draco === b.draco &&
+    a.cleanup === b.cleanup &&
+    a.textureFormat === b.textureFormat &&
+    a.maxTextureSize === b.maxTextureSize
+  );
+}
+
 export function Converter() {
   const [caps, setCaps] = React.useState<Capabilities>(DEFAULT_CAPS);
   const [file, setFile] = React.useState<File | null>(null);
@@ -68,6 +77,11 @@ export function Converter() {
   // convert time so toggling `outputUpAxis` afterwards can't re-rotate (and tip
   // over) the already-built result preview.
   const [convertedUpAxis, setConvertedUpAxis] = React.useState<OutputUpAxis>('y');
+  // The full settings the current result was built with, snapshotted at convert
+  // time so we can tell when the user has changed something since downloading
+  // and offer to re-convert with the new settings.
+  const [convertedDirection, setConvertedDirection] = React.useState<Direction>('fbx2glb');
+  const [convertedOptions, setConvertedOptions] = React.useState<OptimizeOptions>(DEFAULT_OPTIONS);
   const pollRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Build an object URL for the local file so we can preview it before converting.
@@ -123,6 +137,15 @@ export function Converter() {
 
   const busy = phase === 'uploading' || phase === 'processing';
 
+  // Once a result is ready, has the user changed any setting that would produce
+  // a different output? If so we offer a re-convert instead of forcing a full
+  // reset. Optimize options only affect FBX→GLB, so ignore them otherwise.
+  const settingsDirty =
+    phase === 'done' &&
+    (outputUpAxis !== convertedUpAxis ||
+      direction !== convertedDirection ||
+      (direction === 'fbx2glb' && !optionsEqual(options, convertedOptions)));
+
   const poll = React.useCallback((id: string) => {
     const tick = async () => {
       try {
@@ -155,6 +178,8 @@ export function Converter() {
     try {
       const created = await startConversion(file, direction, options, outputUpAxis, setUploadPct);
       setConvertedUpAxis(outputUpAxis);
+      setConvertedDirection(direction);
+      setConvertedOptions(options);
       setJob(created);
       setPhase('processing');
       poll(created.id);
@@ -320,6 +345,18 @@ export function Converter() {
           </div>
         )}
 
+        {/* When the user tweaks a setting after a result is ready, let them know
+            the download still reflects the previous settings until they re-run. */}
+        {settingsDirty && (
+          <div className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-foreground animate-fade-in">
+            <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <span>
+              You changed settings since the last conversion. Re-convert to apply them to a new
+              download.
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-col gap-3 sm:flex-row">
           {phase !== 'done' ? (
             <Button
@@ -334,10 +371,25 @@ export function Converter() {
             </Button>
           ) : (
             <>
+              {settingsDirty && (
+                <Button
+                  size="lg"
+                  variant="brand"
+                  className="flex-1"
+                  disabled={!caps.directions[direction]}
+                  onClick={handleConvert}
+                >
+                  <Wand2 className="h-4 w-4 shrink-0" />
+                  Re-convert with new settings
+                </Button>
+              )}
               <a
                 href={job ? downloadUrl(job.id) : '#'}
                 download
-                className={cn(buttonVariants({ variant: 'brand', size: 'lg' }), 'min-w-0 flex-1')}
+                className={cn(
+                  buttonVariants({ variant: settingsDirty ? 'outline' : 'brand', size: 'lg' }),
+                  'min-w-0 flex-1',
+                )}
               >
                 <Download className="h-4 w-4 shrink-0" />
                 <span className="truncate">
