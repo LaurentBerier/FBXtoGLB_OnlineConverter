@@ -37,6 +37,79 @@ def clear_scene():
                 block.remove(item)
 
 
+def _source_node(socket):
+    """Follow a single input link back to its origin node (one hop)."""
+    if socket is None or not socket.is_linked:
+        return None
+    return socket.links[0].from_node
+
+
+def normalize_materials():
+    """
+    Blender's FBX importer produces spurious transparency in two ways, both of
+    which the glTF exporter faithfully turns into alphaMode=BLEND — leaving solid
+    surfaces see-through in the GLB (you end up looking at backfaces / inner
+    geometry through what should be solid armor, skin, etc.):
+
+      1. It misreads the Maya/3ds Max 'Opacity' / 'TransparentColor' channels and
+         sets a constant Principled Alpha < 1.
+      2. It wires the *base-color image's alpha channel* straight into the
+         Principled 'Alpha' socket, even when that alpha is not meant as opacity
+         (the Unreal mannequin's base color PNG is the textbook case).
+
+    Fix both. A genuine cutout / opacity map (a *separate* image driving Alpha) is
+    preserved.
+    """
+    forced = 0
+    cleared = 0
+    for mat in bpy.data.materials:
+        if not mat.use_nodes or not mat.node_tree:
+            continue
+        nt = mat.node_tree
+        bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if bsdf is None:
+            continue
+        alpha_in = bsdf.inputs.get("Alpha")
+        if alpha_in is None:
+            continue
+
+        if alpha_in.is_linked:
+            alpha_img = getattr(_source_node(alpha_in), "image", None)
+            base_img = getattr(_source_node(bsdf.inputs.get("Base Color")), "image", None)
+            # The FBX importer routinely feeds the base-color image's alpha channel
+            # into Alpha. It often does so via a *duplicated* datablock (file1 vs
+            # file1.001) that points at the same file on disk, so compare both the
+            # datablock identity and the source filepath.
+            same_image = alpha_img is not None and base_img is not None and (
+                alpha_img == base_img
+                or (bool(alpha_img.filepath) and alpha_img.filepath == base_img.filepath)
+            )
+            if same_image:
+                # Spurious base-color alpha — disconnect it and go opaque.
+                for link in list(alpha_in.links):
+                    nt.links.remove(link)
+                alpha_in.default_value = 1.0
+                cleared += 1
+            else:
+                # Distinct opacity map -> genuine transparency, leave it.
+                continue
+
+        # Constant alpha (or now-disconnected): clamp to fully opaque.
+        if alpha_in.default_value < 1.0:
+            alpha_in.default_value = 1.0
+            forced += 1
+        # blend_method / shadow_method were removed in Blender 4.2 (EEVEE Next),
+        # so guard with hasattr to stay compatible across versions.
+        if hasattr(mat, "blend_method"):
+            mat.blend_method = "OPAQUE"
+        if hasattr(mat, "shadow_method"):
+            mat.shadow_method = "OPAQUE"
+    print(
+        f"[bridge] normalized materials: cleared {cleared} base-color alpha links, "
+        f"forced opaque on {forced} constant alpha<1"
+    )
+
+
 def summarize():
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
     armatures = [o for o in bpy.data.objects if o.type == "ARMATURE"]
@@ -85,6 +158,7 @@ def main():
     # Import FBX. Blender brings in the armature, skin weights, animations (as
     # Actions), materials and embedded textures, and reads custom split normals.
     bpy.ops.import_scene.fbx(filepath=args.input)
+    normalize_materials()
     summarize()
 
     has_anim = len(bpy.data.actions) > 0
